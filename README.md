@@ -53,6 +53,15 @@ You can then execute your native executable with: `./target/backend-blueprint-1.
 
 If you want to learn more about building native executables, please consult <https://quarkus.io/guides/maven-tooling>.
 
+## Git hooks
+
+Commit messages follow [Conventional Commits](https://www.conventionalcommits.org/), validated by
+`.githooks/commit-msg`. Git does not version hooks, so link it once after cloning:
+
+```shell script
+ln -sf ../../.githooks/commit-msg .git/hooks/commit-msg
+```
+
 ## Related Guides
 
 - REST Jackson ([guide](https://quarkus.io/guides/rest#json-serialisation)): Jackson serialization support for Quarkus REST. This extension is not compatible with the quarkus-resteasy extension, or any of the extensions that depend on it

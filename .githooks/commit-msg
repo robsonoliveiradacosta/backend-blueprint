@@ -1,0 +1,76 @@
+#!/bin/sh
+# Validates the commit message against .agents/skills/conventional-commits/SKILL.md.
+# Dependency-free on purpose: a clone enforces the standard without installing anything.
+#
+# Install (git hooks are not versioned):
+#   ln -sf ../../.githooks/commit-msg .git/hooks/commit-msg
+#
+# The global commit-msg hook, when present, runs first and delegates here, so the
+# attribution stripping happens before this validation.
+
+msg_file="$1"
+[ -r "$msg_file" ] || exit 0
+
+types='feat|fix|docs|style|refactor|perf|test|chore|ci|revert'
+skill='.agents/skills/conventional-commits/SKILL.md'
+
+body=$(sed -e '/^#/d' "$msg_file")
+subject=$(printf '%s\n' "$body" | sed -n '1p')
+
+# Messages git composes itself, and the markers rebase consumes later.
+case "$subject" in
+  '') exit 0 ;;
+  'Merge branch'*|'Merge pull request'*|'Merge remote-tracking'*|'Merge tag'*) exit 0 ;;
+  'fixup!'*|'squash!'*|'amend!'*) exit 0 ;;
+esac
+
+fail() {
+  printf '\ncommit-msg rejected: %s\n' "$1" >&2
+  printf '  subject: %s\n' "$subject" >&2
+  printf '  rules:   %s\n\n' "$skill" >&2
+  exit 1
+}
+
+case "$subject" in
+  'Revert "'*)
+    fail 'git default revert message — rewrite as "revert: <subject of the reverted commit>" with a Refs: <sha> footer' ;;
+esac
+
+printf '%s' "$subject" | grep -qE "^($types)(\([a-z0-9._/-]+\))?!?: .+" ||
+  fail "subject must read '<type>(<optional scope>): <description>', type one of: $types"
+
+[ "${#subject}" -le 72 ] ||
+  fail "subject is ${#subject} characters; keep it to 72 or less"
+
+case "$subject" in
+  *.) fail 'subject must not end with a period' ;;
+esac
+
+description=${subject#*: }
+case "$description" in
+  [A-Z]*) fail 'description must start lowercase' ;;
+esac
+
+case "${description%% *}" in
+  added|adds|fixed|fixes|updated|updates|changed|changes|removed|removes)
+    fail 'description must be imperative — "add", not "added" or "adds"' ;;
+  created|creates|implemented|implements|adding|fixing|updating|changing|removing|creating)
+    fail 'description must be imperative — "add", not "added" or "adding"' ;;
+esac
+
+# A body must be separated from the subject by a blank line.
+second=$(printf '%s\n' "$body" | sed -n '2p')
+[ -z "$second" ] ||
+  fail 'leave a blank line between the subject and the body'
+
+# BREAKING CHANGE is the exact token tooling detects; a cased variant is invisible to it.
+printf '%s\n' "$body" | grep -qE '^[Bb]reaking[ -][Cc]hange:' &&
+  ! printf '%s\n' "$body" | grep -qE '^BREAKING[ -]CHANGE:' &&
+  fail 'the breaking-change footer must be the uppercase token BREAKING CHANGE:'
+
+# Trailers credit people; whatever produced the change is not one of them.
+printf '%s\n' "$body" |
+  grep -qiE '^co-authored-by:.*(claude|codex|copilot|gemini|gpt|antigravity|\[bot\])|noreply@(anthropic|openai)\.com|generated with' &&
+  fail 'trailers credit people, not the tooling that produced the change'
+
+exit 0
