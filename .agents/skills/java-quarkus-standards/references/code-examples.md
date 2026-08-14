@@ -148,6 +148,7 @@ private static Sort parseSort(String sort) {
 ## 8. Resources — `{base.package}.resource`
 
 ```java
+// OpenAPI annotations (@Tag, @Operation, @APIResponse) are required too — omitted here, see §14.
 @Path("/v1/users")
 @Produces(MediaType.APPLICATION_JSON)
 @Consumes(MediaType.APPLICATION_JSON)
@@ -356,3 +357,59 @@ public class UnhandledExceptionMapper extends AbstractProblemMapper implements E
     }
 }
 ```
+
+## 14. OpenAPI & Swagger UI
+
+Common error responses declared once on the class; each method documents only what is specific to it:
+
+```java
+// Excerpt — documentation annotations only; the full resource shape is in §8.
+@Path("/v1/users")
+@Tag(name = "Users", description = "User registry")
+@APIResponses({
+        @APIResponse(responseCode = "400", description = "Validation failure",
+                content = @Content(mediaType = "application/problem+json",
+                        schema = @Schema(implementation = ProblemDetail.class))),
+        @APIResponse(responseCode = "401", description = "Missing or invalid credentials"),
+        @APIResponse(responseCode = "500", description = "Unexpected failure",
+                content = @Content(mediaType = "application/problem+json",
+                        schema = @Schema(implementation = ProblemDetail.class)))
+})
+public class UserResource {
+
+    @POST
+    @RolesAllowed("ADMIN")
+    @Operation(summary = "Create a user", description = "Registers a user and returns its Location.")
+    @APIResponse(responseCode = "201", description = "Created")
+    @APIResponse(responseCode = "409", description = "Email already registered",
+            content = @Content(mediaType = "application/problem+json",
+                    schema = @Schema(implementation = ProblemDetail.class)))
+    public Response create(@Valid CreateUserRequest request) { ... }
+}
+```
+
+```java
+// @Schema carries only what validation cannot express: meaning and an example.
+public record CreateUserRequest(
+        @NotBlank @Size(max = 120)
+        @Schema(description = "Display name", example = "Ada Lovelace")
+        String name,
+
+        @NotBlank @Email
+        @Schema(description = "Unique login address", example = "ada@example.com")
+        String email
+) {}
+```
+
+The scheme the deny-by-default rule (§13) implies, declared once:
+
+```java
+// Empty Application subclass: it exists only to carry these annotations.
+// Never override getClasses()/getSingletons() here — that switches off resource discovery.
+@OpenAPIDefinition(info = @Info(title = "Users API", version = "v1"))
+@SecurityScheme(securitySchemeName = "bearer", type = SecuritySchemeType.HTTP,
+        scheme = "bearer", bearerFormat = "JWT")
+public class OpenApiConfiguration extends Application {
+}
+```
+

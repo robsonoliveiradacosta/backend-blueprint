@@ -1,6 +1,6 @@
 ---
 name: java-quarkus-standards
-description: "Java 21 + Quarkus synchronous REST standards using the Panache Repository pattern. Use whenever generating, refactoring, or reviewing Java code in this project: creating or changing JPA entities, Panache repositories, services, JAX-RS resources, record DTOs, exception mappers and RFC 7807 error payloads, logging, Flyway migrations, configuration or endpoint security, or QuarkusTest tests; adding a CRUD or a new endpoint; deciding how a feature should be structured; or checking existing code for SOLID, clean-code, and layering violations. Enforces record DTOs (Lombok banned), sequence-generated IDs, repository pattern (no active record), explicit manual mapping (no reflection mappers), /v1/{resources} versioned URIs, constructor injection, and synchronous endpoints with virtual threads."
+description: "Java 21 + Quarkus synchronous REST standards using the Panache Repository pattern. Use whenever generating, refactoring, or reviewing Java code in this project: creating or changing JPA entities, Panache repositories, services, JAX-RS resources, record DTOs, exception mappers and RFC 7807 error payloads, logging, Flyway migrations, configuration or endpoint security, OpenAPI documentation, or QuarkusTest tests; adding a CRUD or a new endpoint; deciding how a feature should be structured; or checking existing code for SOLID, clean-code, and layering violations. Enforces record DTOs (Lombok banned), sequence-generated IDs, repository pattern (no active record), explicit manual mapping (no reflection mappers), /v1/{resources} versioned URIs, constructor injection, and synchronous endpoints with virtual threads."
 ---
 
 # Java 21 & Quarkus — Coding Standards
@@ -266,6 +266,32 @@ you must read before changing the schema, adding configuration, or exposing an e
 - **Access is deny-by-default.** `quarkus.security.jaxrs.deny-unannotated-endpoints=true`, and every resource method
   carries an explicit `@RolesAllowed` or a deliberate `@PermitAll`.
 
+## 14. OpenAPI & Swagger UI
+
+The published contract is part of the deliverable: an endpoint nobody can discover is an endpoint nobody can call.
+
+- **Extension:** `quarkus-smallrye-openapi`. The spec is served at `/q/openapi`, the UI at `/q/swagger-ui`.
+- **Swagger UI is included in dev and test only** — that is the Quarkus default, so it needs no configuration.
+  Shipping it in a deployed build requires the build-time `quarkus.swagger-ui.always-include=true`; if you do that,
+  gate it deliberately (runtime `quarkus.swagger-ui.enabled` per profile, or an auth permission).
+- **The UI being absent in production does not hide the spec.** `/q/openapi` is a separate, runtime-enabled endpoint
+  that stays open by default in every profile. Decide explicitly: close it with
+  `%prod.quarkus.smallrye-openapi.enabled=false`, or keep it open on purpose because the contract is public — and
+  then protect it through `quarkus.http.auth.permission.*` if it is not.
+- **Resources:** `@Tag` on the class to group the endpoints, `@Operation(summary, description)` on every method.
+- **Responses:** document the status codes that belong to that method's contract with `@APIResponse`, and point every
+  error response at the `ProblemDetail` schema from §9 — a documented API whose errors are undocumented is half a
+  contract. Declare the responses common to the whole resource once at class level rather than repeating 400/401/500
+  on each method.
+- **Records:** `@Schema(description, example)` adds what cannot be inferred. Do NOT restate constraints that Bean
+  Validation already declares — Quarkus derives `required`, `maxLength` and friends from `@NotBlank`, `@Size` and the
+  rest. Two sources for the same fact drift apart.
+- **Security:** declare the authentication scheme (`@SecurityScheme` on the application class,
+  `@SecurityRequirement` where it applies) so the published contract matches the deny-by-default rule of §13 and
+  "try it out" actually works.
+
+*Shape to copy: `references/code-examples.md` §14.*
+
 ## Definition of done — check before finishing
 
 - [ ] No Lombok anywhere; DTOs are records with Bean Validation annotations
@@ -290,4 +316,6 @@ you must read before changing the schema, adding configuration, or exposing an e
 - [ ] No secret hardcoded; environment-specific values come from env vars or profiles
 - [ ] Every endpoint has an explicit `@RolesAllowed` or a deliberate `@PermitAll`
 - [ ] Paginated endpoints return `PageResponse<T>` with the total, not a bare `List`
+- [ ] Endpoints carry `@Tag`/`@Operation`, documented status codes reference the `ProblemDetail` schema, and records
+      document only what validation does not already declare
 - [ ] No placeholders or TODOs left behind

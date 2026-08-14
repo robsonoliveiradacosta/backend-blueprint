@@ -73,6 +73,10 @@ quarkus.datasource.password=${DB_PASSWORD:dev-only}
 
 # Nothing is public unless it says so
 quarkus.security.jaxrs.deny-unannotated-endpoints=true
+
+# Swagger UI ships only in dev/test by default (build-time inclusion), but the raw spec
+# endpoint is runtime-enabled and open in every profile — close it deliberately.
+%prod.quarkus.smallrye-openapi.enabled=false
 ```
 
 ```java
