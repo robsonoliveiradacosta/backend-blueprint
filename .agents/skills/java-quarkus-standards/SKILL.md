@@ -1,6 +1,6 @@
 ---
 name: java-quarkus-standards
-description: "Java 21 + Quarkus synchronous REST standards using the Panache Repository pattern. Use whenever generating, refactoring, or reviewing Java code in this project: creating or changing JPA entities, Panache repositories, services, JAX-RS resources, record DTOs, exception mappers and RFC 7807 error payloads, or QuarkusTest tests; adding a CRUD or a new endpoint; deciding how a feature should be structured; or checking existing code for SOLID, clean-code, and layering violations. Enforces record DTOs (Lombok banned), sequence-generated IDs, repository pattern (no active record), explicit manual mapping (no reflection mappers), /v1/{resources} versioned URIs, constructor injection, and synchronous endpoints with virtual threads."
+description: "Java 21 + Quarkus synchronous REST standards using the Panache Repository pattern. Use whenever generating, refactoring, or reviewing Java code in this project: creating or changing JPA entities, Panache repositories, services, JAX-RS resources, record DTOs, exception mappers and RFC 7807 error payloads, logging, or QuarkusTest tests; adding a CRUD or a new endpoint; deciding how a feature should be structured; or checking existing code for SOLID, clean-code, and layering violations. Enforces record DTOs (Lombok banned), sequence-generated IDs, repository pattern (no active record), explicit manual mapping (no reflection mappers), /v1/{resources} versioned URIs, constructor injection, and synchronous endpoints with virtual threads."
 ---
 
 # Java 21 & Quarkus — Coding Standards
@@ -179,6 +179,33 @@ When a service method exists to serve an endpoint that must answer 404, it still
 
 *Shape to copy: `references/code-examples.md` §11.*
 
+## 12. Observability & Structured Logging
+
+- **Standard Logger:** Always use `org.jboss.logging.Logger` (already on the classpath through Quarkus core). Do NOT
+  use `System.out.println` or `java.util.logging`.
+- **Field Initialization:** Declare logger instances as
+  `private static final Logger LOG = Logger.getLogger(YourClass.class);`.
+- **Contextual Logging (No PII):** NEVER log sensitive personal data — passwords, tokens, full request bodies, or
+  personal identifiers. Log event names, resource IDs, or entity UUIDs instead.
+- **Appropriate Log Levels:**
+  - `INFO`: business-relevant milestones (entity created, status updated).
+  - `WARN`: handled anomalies or unexpected business conditions.
+  - `ERROR`: unhandled system exceptions and infrastructure failures — always pass the `Throwable` instance.
+  - `DEBUG`: technical execution details useful during local debugging.
+- **Parametrized Messaging:** Use placeholders instead of string concatenation:
+  `LOG.infof("Created resource with ID: %s", resourceId);`. The `*f` methods take printf-style `%s`, and each level has
+  a `Throwable`-first overload (`LOG.errorf(exception, "...", args)`).
+
+Two rules that keep the logs readable:
+
+- **Log an exception once.** The `ExceptionMapper` of §9 is where a failure is logged — at `ERROR` with the
+  `Throwable`, or at `WARN` for expected business failures such as a not-found. Services and resources do not
+  log-and-rethrow the same exception on the way up.
+- The stack trace goes to the log, never to the response body. §9 governs what the client sees; this section governs
+  what the operator sees.
+
+*Shape to copy: `references/code-examples.md` §12.*
+
 ## Definition of done — check before finishing
 
 - [ ] No Lombok anywhere; DTOs are records with Bean Validation annotations
@@ -195,4 +222,6 @@ When a service method exists to serve an endpoint that must answer 404, it still
 - [ ] Error responses are RFC 7807 (`type`, `title`, `status`, `detail`, `instance`, `timestamp`) served as
       `application/problem+json`, built through one shared helper; validation failures list the offending fields
 - [ ] New extensions added to `pom.xml`; code compiles (`./mvnw -q -DskipTests package`) and tests pass (`./mvnw test`)
+- [ ] Logging via `org.jboss.logging.Logger` with parametrized messages, right level, `Throwable` on `ERROR`, and no
+      PII in any message
 - [ ] No placeholders or TODOs left behind

@@ -203,3 +203,53 @@ public Optional<UserResponse> findByEmail(String email) {
 }
 ```
 
+## 12. Observability & Structured Logging
+
+```java
+@ApplicationScoped
+public class UserService {
+
+    private static final Logger LOG = Logger.getLogger(UserService.class);
+
+    private final UserRepository repository;
+
+    public UserService(UserRepository repository) {
+        this.repository = repository;
+    }
+
+    @Transactional
+    public UserResponse create(CreateUserRequest request) {
+        UserEntity entity = new UserEntity(request.name(), request.email());
+        repository.persist(entity);
+        LOG.infof("User created with id %s", entity.getId());   // id, never the email or the body
+        return UserResponse.from(entity);
+    }
+}
+```
+
+```java
+@Provider
+public class UnhandledExceptionMapper implements ExceptionMapper<Exception> {
+
+    private static final Logger LOG = Logger.getLogger(UnhandledExceptionMapper.class);
+
+    @Context
+    UriInfo uriInfo;
+
+    @Override
+    public Response toResponse(Exception exception) {
+        // The operator gets the stack trace; the client gets a problem detail without internals.
+        LOG.errorf(exception, "Unhandled failure on %s", uriInfo.getRequestUri().getPath());
+        ProblemDetail problem = new ProblemDetail(
+                "about:blank",
+                "Internal server error",
+                Response.Status.INTERNAL_SERVER_ERROR.getStatusCode(),
+                "The request could not be completed.",
+                uriInfo.getRequestUri().getPath(),
+                OffsetDateTime.now(),
+                List.of());
+        return problemResponse(problem);
+    }
+}
+```
+
