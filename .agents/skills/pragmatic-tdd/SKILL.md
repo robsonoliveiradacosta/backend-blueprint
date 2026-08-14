@@ -33,6 +33,8 @@ ensuring business contracts are protected without creating fragile test suites.
 - Cover, at minimum: success (200/201/204), validation failure (400), and not found (404). Add the error paths the
   feature actually introduces (conflict, forbidden, etc.).
 - Assert the contract, not the implementation: status code, response body fields, and headers such as `Location`.
+  On error paths assert the problem-details body too (`title`, `status`, `detail`, and the offending fields on a 400),
+  not just the status code — the error payload is part of the published contract.
 - Run it and confirm it fails **for the intended reason** (missing endpoint, wrong status) — not because the test
   itself does not compile or a fixture is broken.
 
