@@ -92,20 +92,14 @@ public interface BillingConfig {
 }
 ```
 
+Role annotations on a resource are part of the complete shape in `code-examples.md` §8 — read for either role,
+destructive operations for `ADMIN`. The only case that section does not show is the deliberate exception:
+
 ```java
-// Excerpt — annotations only; the full resource shape is in §8.
-// Read for either role, destructive operations for ADMIN only, login left deliberately open.
-@GET
-@RolesAllowed({"USER", "ADMIN"})
-public PageResponse<UserResponse> list(...) { ... }
-
-@DELETE
-@Path("/{id}")
-@RolesAllowed("ADMIN")
-public Response delete(@PathParam("id") Long id) { ... }
-
 @POST
 @Path("/login")
-@PermitAll
-public TokenResponse login(@Valid LoginRequest request) { ... }
+@PermitAll   // the one endpoint that is public on purpose; everything else answers 401 unannotated
+public TokenResponse login(@Valid LoginRequest request) {
+    return authService.authenticate(request);
+}
 ```
