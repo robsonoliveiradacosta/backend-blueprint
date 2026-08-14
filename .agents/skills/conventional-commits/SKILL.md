@@ -1,6 +1,6 @@
 ---
 name: conventional-commits
-description: "Conventional Commits standard for every commit message. Use whenever you are about to run `git commit`, amend or reword a commit, revert one, write a squash/merge commit or a pull-request title, split staged work into commits, or review whether existing history follows the convention. Defines the `<type>(<scope>): <description>` format, the ten allowed types (feat, fix, docs, style, refactor, perf, test, chore, ci, revert), imperative-mood descriptions, `!` and `BREAKING CHANGE:` for breaking changes, and the rule of one logical change per commit. Language- and framework-agnostic."
+description: "Conventional Commits standard for every commit message. Use whenever you are about to run `git commit`, amend or reword a commit, revert one, write a squash/merge commit or a pull-request title, split staged work into commits, or review whether existing history follows the convention. Defines the `<type>(<scope>): <description>` format, the ten allowed types (feat, fix, docs, style, refactor, perf, test, chore, ci, revert), imperative-mood descriptions, `!` and `BREAKING CHANGE:` for breaking changes, the rule of one logical change per commit, and the ban on trailers that credit tooling instead of people. Language- and framework-agnostic."
 ---
 
 # Git Commits — Conventional Commits
@@ -69,6 +69,9 @@ malformed one breaks that silently.
 - **Footers** — issue references and trailers, one per line: `Refs: #142`, `Closes #142`, `Reviewed-by: …`. A footer
   token replaces whitespace with `-` (`Signed-off-by`, never `Signed off by`) and is separated from its value by
   `: ` or ` #`. `BREAKING CHANGE` is the one token allowed to contain a space.
+- **Credit people, not tooling.** `Co-Authored-By` names a person who worked on the change. A trailer or footer
+  naming whatever produced it — an editor, a generator, a bot — is noise in the history and is never written, no
+  matter what a tool appends by default.
 
 ## Three rules that keep the history usable
 
@@ -156,6 +159,7 @@ EOF
 | `build(deps): bump the framework` | `build` is not an allowed type — this is `chore` |
 | `feat(api)!: rename the field` + `Breaking change: …` | the footer token must be uppercase `BREAKING CHANGE:` |
 | `Revert "feat(user): add endpoint"` | git's default revert message — rewrite it as `revert:` with a `Refs:` footer |
+| `feat(user): add endpoint` + a trailer naming the tool that wrote it | trailers credit people, not tooling |
 
 ## Before committing
 
@@ -167,3 +171,4 @@ EOF
 - [ ] Body explains why, when why is not obvious from the diff
 - [ ] `!` plus an uppercase `BREAKING CHANGE:` footer when consumers must react
 - [ ] Footer tokens are dash-joined (`Refs:`, `Reviewed-by:`), issue reference present when one exists
+- [ ] No trailer or footer naming the tool that produced the change
