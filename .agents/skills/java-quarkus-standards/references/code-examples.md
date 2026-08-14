@@ -14,6 +14,12 @@ public record CreateUserRequest(
         @NotBlank @Email
         String email
 ) {}
+
+// A full replacement (PUT) carries every mutable field; a PATCH record would use Optional<T> components.
+public record UpdateUserRequest(
+        @NotBlank @Size(max = 120) String name,
+        @NotBlank @Email String email
+) {}
 ```
 
 ## 4. Entities — `{base.package}.domain.entity`
@@ -111,16 +117,31 @@ public class UserService {
 Assembling a page — the clamp lives in the service, the counting in the repository:
 
 ```java
-public PageResponse<UserResponse> list(int page, int size) {
+private static final Set<String> SORTABLE = Set.of("name", "email", "createdAt");
+
+public PageResponse<UserResponse> list(int page, int size, String sort) {
     int safeSize = Math.clamp(size, 1, 100);
     int safePage = Math.max(page, 0);
 
-    List<UserResponse> content = repository.findPage(Page.of(safePage, safeSize), Sort.by("name"))
+    List<UserResponse> content = repository.findPage(Page.of(safePage, safeSize), parseSort(sort))
             .stream()
             .map(UserResponse::from)
             .toList();
 
     return PageResponse.of(content, safePage, safeSize, repository.count());
+}
+
+// "createdAt,desc" -> Sort. InvalidSortException is a domain exception with its own mapper (§9) returning 400 —
+// an unknown field must never surface as a 500 from the query.
+private static Sort parseSort(String sort) {
+    String[] parts = sort.split(",", 2);
+    String field = parts[0].trim();
+    if (!SORTABLE.contains(field)) {
+        throw new InvalidSortException("sort field not allowed: " + field);
+    }
+    return parts.length > 1 && "desc".equalsIgnoreCase(parts[1].trim())
+            ? Sort.by(field).descending()
+            : Sort.by(field).ascending();
 }
 ```
 
@@ -142,8 +163,9 @@ public class UserResource {
     @RolesAllowed({"USER", "ADMIN"})   // deny-by-default is on (§13): no method goes unannotated
     @RunOnVirtualThread
     public PageResponse<UserResponse> list(@QueryParam("page") @DefaultValue("0") int page,
-                                           @QueryParam("size") @DefaultValue("20") int size) {
-        return service.list(page, size);
+                                           @QueryParam("size") @DefaultValue("20") int size,
+                                           @QueryParam("sort") @DefaultValue("name") String sort) {
+        return service.list(page, size, sort);   // "name" or "createdAt,desc" — parsed in the service
     }
 
     @POST
@@ -154,6 +176,23 @@ public class UserResource {
         return Response.created(URI.create("/v1/users/" + created.id()))
                 .entity(created)
                 .build();
+    }
+
+    @PUT
+    @Path("/{id}")
+    @RolesAllowed("ADMIN")
+    @RunOnVirtualThread
+    public UserResponse replace(@PathParam("id") Long id, @Valid UpdateUserRequest request) {
+        return service.replace(id, request);   // 200 with the resulting resource
+    }
+
+    @DELETE
+    @Path("/{id}")
+    @RolesAllowed("ADMIN")
+    @RunOnVirtualThread
+    public Response delete(@PathParam("id") Long id) {
+        service.delete(id);
+        return Response.noContent().build();   // 204, no body
     }
 }
 ```
@@ -221,6 +260,23 @@ public class EntityNotFoundExceptionMapper extends AbstractProblemMapper
     public Response toResponse(EntityNotFoundException exception) {
         LOG.warnf("Not found: %s", exception.getMessage());
         return problem(Response.Status.NOT_FOUND, "Resource not found", exception.getMessage(), List.of());
+    }
+}
+```
+
+A business rule violation or a unique-key clash is `409`, not `400`:
+
+```java
+@Provider
+public class DomainConflictExceptionMapper extends AbstractProblemMapper
+        implements ExceptionMapper<DomainConflictException> {
+
+    private static final Logger LOG = Logger.getLogger(DomainConflictExceptionMapper.class);
+
+    @Override
+    public Response toResponse(DomainConflictException exception) {
+        LOG.warnf("Conflict: %s", exception.getMessage());
+        return problem(Response.Status.CONFLICT, "Conflict", exception.getMessage(), List.of());
     }
 }
 ```
@@ -300,67 +356,3 @@ public class UnhandledExceptionMapper extends AbstractProblemMapper implements E
     }
 }
 ```
-
-## 13. Production Concerns — schema, configuration, access
-
-Migration file — `src/main/resources/db/migration/V20260814093015__create_users_table.sql`. The sequence increment
-matches the entity's `allocationSize`:
-
-```sql
-CREATE SEQUENCE seq_user INCREMENT BY 50;
-
-CREATE TABLE users (
-    id     BIGINT       PRIMARY KEY,
-    name   VARCHAR(120) NOT NULL,
-    email  VARCHAR(180) NOT NULL UNIQUE
-);
-
-CREATE INDEX idx_user_email ON users (email);
-```
-
-```properties
-# Schema owned by Flyway; timestamp-versioned scripts merged out of order
-quarkus.hibernate-orm.database.generation=none
-quarkus.flyway.migrate-at-start=true
-quarkus.flyway.out-of-order=true
-quarkus.flyway.locations=classpath:db/migration
-%test.quarkus.flyway.clean-at-start=true
-
-# Secrets by environment variable, local default only
-quarkus.datasource.password=${DB_PASSWORD:dev-only}
-
-# Nothing is public unless it says so
-quarkus.security.jaxrs.deny-unannotated-endpoints=true
-```
-
-```java
-@ConfigMapping(prefix = "app.billing")
-public interface BillingConfig {
-
-    URI endpoint();                       // required: startup fails if absent
-
-    @WithDefault("5s")
-    Duration timeout();
-
-    Optional<String> apiKey();            // optional by type, not by convention
-}
-```
-
-```java
-// Excerpt — annotations only; the full resource shape is in §8.
-// Read for either role, destructive operations for ADMIN only, login left deliberately open.
-@GET
-@RolesAllowed({"USER", "ADMIN"})
-public PageResponse<UserResponse> list(...) { ... }
-
-@DELETE
-@Path("/{id}")
-@RolesAllowed("ADMIN")
-public Response delete(@PathParam("id") Long id) { ... }
-
-@POST
-@Path("/login")
-@PermitAll
-public TokenResponse login(@Valid LoginRequest request) { ... }
-```
-

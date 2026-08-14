@@ -9,8 +9,9 @@ You are an expert Java 21+ and Quarkus engineer. Every piece of Java code you ge
 codebase MUST follow the architecture below. These rules are not suggestions — do not invent alternative layers,
 patterns, or libraries.
 
-Canonical code shapes for every layer live in `references/code-examples.md`. Read the entry for the layer you
-are about to write — the rules below say what must be true, the reference shows the exact shape.
+Two companion files carry the detail: `references/code-examples.md` has the canonical shape for every layer — read
+the entry for the layer you are about to write — and `references/production.md` covers migrations, configuration and
+access control. The rules below say what must be true; the references show the exact shape.
 
 ## Before writing code
 
@@ -109,21 +110,59 @@ hand.
 ## 8. Resources — `{base.package}.resource`
 
 - Use the `quarkus-rest` stack (`quarkus-rest-jackson`) with standard `jakarta.ws.rs.*` annotations.
-- **URI pattern: `/v1/{resources}`** — explicit version in the path, plural nouns (`/v1/users`, `/v1/orders`). No
-  header or query-parameter versioning unless explicitly requested.
-- Return synchronous types only: `Response`, a DTO, `List<DTO>` or `PageResponse<DTO>`. Never `Uni`, `Multi`, or
-  `CompletableFuture`.
-- **A paginated endpoint returns `PageResponse<T>`**, never a bare `List` — the client cannot page without the
-  total. The service asks the repository for both the page and the count; `List<DTO>` is only for collections
-  that are inherently small and unpaginated.
-- Clamp `size` to a maximum in the service (100 is a sane default) and floor `page` at 0, so a client cannot request
-  the whole table in one call.
 - The resource **MUST NOT** touch `PanacheRepository` or the `EntityManager` — it delegates to the service.
 - The resource **MUST NOT** accept or return JPA entities — records only, in and out.
-- `@Valid` on request bodies; `@QueryParam`/`@DefaultValue` for pagination and filters.
+- Return synchronous types only: `Response`, a DTO, `List<DTO>` or `PageResponse<DTO>`. Never `Uni`, `Multi`, or
+  `CompletableFuture`.
+- `@Valid` on request bodies; `@QueryParam`/`@DefaultValue` for pagination, sorting and filters.
 
-Status codes: 200 OK, 201 Created (with `Location` when useful), 204 No Content on delete, 400 validation, 404 not
-found. Every non-2xx body is the RFC 7807 payload from §9 — resources never format an error themselves.
+### URI design
+
+- **`/v1/{resources}`** — explicit version in the path, plural nouns (`/v1/users`, `/v1/orders`). No header or
+  query-parameter versioning unless explicitly requested.
+- **Never put a verb in a URI.** `/v1/getUser` and `/v1/createUser` are wrong; the HTTP method is the verb. An action
+  that is genuinely not CRUD becomes a sub-resource noun (`POST /v1/orders/{id}/cancellation`).
+- **Nest at most two levels** (`/v1/customers/{customerId}/orders`). Anything deeper is addressed through its own
+  top-level URI (`/v1/orders/{orderId}`), not `/v1/customers/1/orders/2/items/3`.
+
+### Method semantics
+
+- `GET` — read. Safe and idempotent: it never changes state, and never carries a request body.
+- `POST` — create. Returns `201 Created` with a `Location` header pointing at the new resource, and the created
+  payload in the body.
+- `PUT` — full replacement of an existing resource, or creation when the client owns the key. Idempotent: sending it
+  twice leaves the same state.
+- `PATCH` — partial update; only the fields present in the payload change. The request record must distinguish an
+  absent field from an explicit `null` (e.g. `Optional<String>` components), otherwise "do not touch" and "set to
+  null" become the same request.
+- `DELETE` — removal. Returns `204 No Content`, with no body.
+
+### Status codes
+
+| Code | When |
+|---|---|
+| 200 OK | successful read, or an update that returns the resource |
+| 201 Created | successful creation (with `Location`) |
+| 204 No Content | success with nothing to return (`DELETE`) |
+| 400 Bad Request | malformed payload or validation failure |
+| 401 / 403 | missing identity / identity without the required role (§13) |
+| 404 Not Found | the entity or the URI does not exist |
+| 409 Conflict | business rule violation or unique-key conflict — this is what `DomainConflictException` maps to |
+
+Every non-2xx body is the RFC 7807 payload from §9 — resources never format an error themselves.
+
+### Collection contract
+
+- Collection endpoints accept `page` (0-indexed, default 0), `size` (default 20) and `sort` (`sort=createdAt,desc`;
+  ascending when the direction is omitted). Parse `sort` in the service and translate it to Panache `Sort` — the
+  resource does not build queries.
+- **Validate the sort field against an allow-list** of sortable properties. A field name coming from the client goes
+  straight into the query; an unknown one must answer `400`, never surface as a `500` from Hibernate.
+- **A paginated endpoint returns `PageResponse<T>`**, never a bare `List` — the client cannot page without the total.
+  The service asks the repository for both the page and the count; `List<DTO>` is only for collections that are
+  inherently small and unpaginated.
+- Clamp `size` to a maximum in the service (100 is a sane default) and floor `page` at 0, so a client cannot request
+  the whole table in one call.
 
 *Shape to copy: `references/code-examples.md` §8.*
 
@@ -138,6 +177,8 @@ found. Every non-2xx body is the RFC 7807 payload from §9 — resources never f
   domain and framework exceptions globally. Never let raw database or system stack traces leak to the REST response.
   One mapper per exception type, all living in this package — never a `try/catch` that formats an error inside a
   resource.
+- **Every domain exception has a mapper.** One without a mapper falls into the catch-all and reaches the client as
+  `500` — so introducing an exception and introducing its mapper are the same task, not two.
 - **RFC 7807 Problem Details:** All error responses MUST return a JSON structure adhering to RFC 7807 containing at
   least `title`, `status`, `detail`, `instance` (URI) and `timestamp`.
 - **Validation Failure Mapping:** Intercept `ConstraintViolationException` and return a structured list of invalid
@@ -214,47 +255,16 @@ Two rules that keep the logs readable:
 
 ## 13. Production Concerns — schema, configuration, access
 
-### A. Database migrations (Flyway)
+Three rules that hold everywhere; the detail, the properties and the shapes are in `references/production.md`, which
+you must read before changing the schema, adding configuration, or exposing an endpoint.
 
-- **The schema is owned by versioned migrations**, never by Hibernate. Set
-  `quarkus.hibernate-orm.database.generation=none` outside dev; `update` is forbidden in any environment that holds
-  data you care about.
-- Scripts live in `src/main/resources/db/migration` and are named
-  **`V<yyyyMMddHHmmss>__snake_case_description.sql`** (e.g. `V20260814093015__create_users_table.sql`). Take the
-  timestamp from the moment you write the file — never renumber an existing one.
-- **`quarkus.flyway.out-of-order=true`** is required by that naming: two branches produce interleaved timestamps, so a
-  migration merged late carries a version lower than one already applied. Without out-of-order Flyway refuses it; with
-  it, the migration applies on merge. The price is that a migration MUST NOT assume another branch's migration ran
-  first — each one stands alone or declares its dependency in SQL.
-- **Never edit a migration that has been applied anywhere.** Flyway stores a checksum; changing the file breaks
-  validation for everyone. Fix forward with a new script.
-- Sequences are created here, with `INCREMENT BY` matching the entity's `allocationSize` (§4). If the target engine
-  has no sequences (MySQL, for instance), §4 cannot be satisfied — raise it with the user instead of silently
-  falling back to `GenerationType.IDENTITY`.
-- Typical settings: `migrate-at-start=true`, `baseline-on-migrate=true` on an existing database, and
-  `clean-at-start` only under `%test`.
-
-### B. Configuration & secrets
-
-- **No secret in the repository.** Every credential, key, or external URL comes from an environment variable with, at
-  most, a local-development default: `quarkus.datasource.password=${DB_PASSWORD:dev-only}`.
-- Environment differences belong to profiles (`%dev`, `%test`, `%prod`) in `application.properties`, not to code
-  branching on an "env" string.
-- Read configuration through a typed `@ConfigMapping` interface grouped by feature, not `@ConfigProperty` fields
-  scattered across beans. It fails at startup when a required key is missing, instead of at the first request.
-
-### C. Access control is deny-by-default
-
-- Set **`quarkus.security.jaxrs.deny-unannotated-endpoints=true`**. An endpoint that nobody annotated then answers 401
-  instead of serving data — forgetting the annotation becomes a visible error rather than a silent hole.
-- Every resource method carries an explicit `@RolesAllowed({...})`, or a deliberate `@PermitAll` for the few public
-  ones (login, a public read endpoint). "Public because it has no annotation" is not a decision anyone made.
-- This property only governs Jakarta REST endpoints. Management routes such as `/q/health` and `/q/metrics` are not
-  JAX-RS resources — restrict those through `quarkus.http.auth.permission.*` (or the management interface) instead.
-- `quarkus.security.deny-unannotated-members=true` extends the same default to CDI methods in classes that already
-  carry security annotations.
-
-*Shape to copy: `references/code-examples.md` §13.*
+- **The schema belongs to Flyway, never to Hibernate.** `quarkus.hibernate-orm.database.generation=none` outside dev,
+  every change shipped as `V<yyyyMMddHHmmss>__snake_case_description.sql`, `quarkus.flyway.out-of-order=true`, and an
+  applied migration is never edited.
+- **No secret in the repository.** Credentials and environment-specific values arrive through environment variables
+  and profiles, read via a typed `@ConfigMapping`.
+- **Access is deny-by-default.** `quarkus.security.jaxrs.deny-unannotated-endpoints=true`, and every resource method
+  carries an explicit `@RolesAllowed` or a deliberate `@PermitAll`.
 
 ## Definition of done — check before finishing
 
@@ -262,7 +272,9 @@ Two rules that keep the logs readable:
 - [ ] Entities are plain JPA with sequence IDs (`seq_<entity_name>`), private fields, hand-written accessors
 - [ ] Queries live in an `@ApplicationScoped` `PanacheRepository`; no active record
 - [ ] Service is `@ApplicationScoped`, constructor-injected, `@Transactional` on writes
-- [ ] Resource path is `/v1/{resources}`, returns synchronous types, never touches repositories or entities
+- [ ] Resource path is `/v1/{resources}` with no verb in the URI and at most two nesting levels; methods follow
+      GET/POST/PUT/PATCH/DELETE semantics and the status-code table (409 for conflicts)
+- [ ] Resource returns synchronous types and never touches repositories or entities
 - [ ] Mapping is explicit (static `from(...)` or service method), no reflection mapper
 - [ ] Blocking endpoints/services annotated with `@RunOnVirtualThread` where beneficial
 - [ ] Methods under 20 lines, guard clauses instead of nested `if/else`, no `null` returned from services
