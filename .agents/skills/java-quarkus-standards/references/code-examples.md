@@ -119,19 +119,31 @@ public class UserResource {
     }
 
     @GET
+    @RolesAllowed({"USER", "ADMIN"})   // deny-by-default is on (§13): no method goes unannotated
     @RunOnVirtualThread
-    public List<UserResponse> list(@QueryParam("page") @DefaultValue("0") int page,
-                                   @QueryParam("size") @DefaultValue("20") int size) {
+    public PageResponse<UserResponse> list(@QueryParam("page") @DefaultValue("0") int page,
+                                           @QueryParam("size") @DefaultValue("20") int size) {
         return service.list(page, size);
     }
 
     @POST
+    @RolesAllowed("ADMIN")
     @RunOnVirtualThread
     public Response create(@Valid CreateUserRequest request) {
         UserResponse created = service.create(request);
         return Response.created(URI.create("/v1/users/" + created.id()))
                 .entity(created)
                 .build();
+    }
+}
+```
+
+```java
+public record PageResponse<T>(List<T> content, int page, int size, long totalElements, int totalPages) {
+
+    public static <T> PageResponse<T> of(List<T> content, int page, int size, long totalElements) {
+        int totalPages = size == 0 ? 0 : (int) Math.ceil((double) totalElements / size);
+        return new PageResponse<>(content, page, size, totalElements, totalPages);
     }
 }
 ```
@@ -268,3 +280,67 @@ public class UnhandledExceptionMapper extends AbstractProblemMapper implements E
     }
 }
 ```
+
+## 13. Production Concerns — schema, configuration, access
+
+Migration file — `src/main/resources/db/migration/V20260814093015__create_users_table.sql`. The sequence increment
+matches the entity's `allocationSize`:
+
+```sql
+CREATE SEQUENCE seq_user INCREMENT BY 50;
+
+CREATE TABLE users (
+    id     BIGINT       PRIMARY KEY,
+    name   VARCHAR(120) NOT NULL,
+    email  VARCHAR(180) NOT NULL UNIQUE
+);
+
+CREATE INDEX idx_user_email ON users (email);
+```
+
+```properties
+# Schema owned by Flyway; timestamp-versioned scripts merged out of order
+quarkus.hibernate-orm.database.generation=none
+quarkus.flyway.migrate-at-start=true
+quarkus.flyway.out-of-order=true
+quarkus.flyway.locations=classpath:db/migration
+%test.quarkus.flyway.clean-at-start=true
+
+# Secrets by environment variable, local default only
+quarkus.datasource.password=${DB_PASSWORD:dev-only}
+
+# Nothing is public unless it says so
+quarkus.security.jaxrs.deny-unannotated-endpoints=true
+```
+
+```java
+@ConfigMapping(prefix = "app.billing")
+public interface BillingConfig {
+
+    URI endpoint();                       // required: startup fails if absent
+
+    @WithDefault("5s")
+    Duration timeout();
+
+    Optional<String> apiKey();            // optional by type, not by convention
+}
+```
+
+```java
+// Excerpt — annotations only; the full resource shape is in §8.
+// Read for either role, destructive operations for ADMIN only, login left deliberately open.
+@GET
+@RolesAllowed({"USER", "ADMIN"})
+public PageResponse<UserResponse> list(...) { ... }
+
+@DELETE
+@Path("/{id}")
+@RolesAllowed("ADMIN")
+public Response delete(@PathParam("id") Long id) { ... }
+
+@POST
+@Path("/login")
+@PermitAll
+public TokenResponse login(@Valid LoginRequest request) { ... }
+```
+

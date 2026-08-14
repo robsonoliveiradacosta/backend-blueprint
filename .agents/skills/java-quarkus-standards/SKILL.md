@@ -1,6 +1,6 @@
 ---
 name: java-quarkus-standards
-description: "Java 21 + Quarkus synchronous REST standards using the Panache Repository pattern. Use whenever generating, refactoring, or reviewing Java code in this project: creating or changing JPA entities, Panache repositories, services, JAX-RS resources, record DTOs, exception mappers and RFC 7807 error payloads, logging, or QuarkusTest tests; adding a CRUD or a new endpoint; deciding how a feature should be structured; or checking existing code for SOLID, clean-code, and layering violations. Enforces record DTOs (Lombok banned), sequence-generated IDs, repository pattern (no active record), explicit manual mapping (no reflection mappers), /v1/{resources} versioned URIs, constructor injection, and synchronous endpoints with virtual threads."
+description: "Java 21 + Quarkus synchronous REST standards using the Panache Repository pattern. Use whenever generating, refactoring, or reviewing Java code in this project: creating or changing JPA entities, Panache repositories, services, JAX-RS resources, record DTOs, exception mappers and RFC 7807 error payloads, logging, Flyway migrations, configuration or endpoint security, or QuarkusTest tests; adding a CRUD or a new endpoint; deciding how a feature should be structured; or checking existing code for SOLID, clean-code, and layering violations. Enforces record DTOs (Lombok banned), sequence-generated IDs, repository pattern (no active record), explicit manual mapping (no reflection mappers), /v1/{resources} versioned URIs, constructor injection, and synchronous endpoints with virtual threads."
 ---
 
 # Java 21 & Quarkus — Coding Standards
@@ -111,7 +111,11 @@ hand.
 - Use the `quarkus-rest` stack (`quarkus-rest-jackson`) with standard `jakarta.ws.rs.*` annotations.
 - **URI pattern: `/v1/{resources}`** — explicit version in the path, plural nouns (`/v1/users`, `/v1/orders`). No
   header or query-parameter versioning unless explicitly requested.
-- Return synchronous types only: `Response`, a DTO, or `List<DTO>`. Never `Uni`, `Multi`, or `CompletableFuture`.
+- Return synchronous types only: `Response`, a DTO, `List<DTO>` or `PageResponse<DTO>`. Never `Uni`, `Multi`, or
+  `CompletableFuture`.
+- **A paginated endpoint returns `PageResponse<T>`**, never a bare `List` — the client cannot page without the
+  total. The service asks the repository for both the page and the count; `List<DTO>` is only for collections
+  that are inherently small and unpaginated.
 - The resource **MUST NOT** touch `PanacheRepository` or the `EntityManager` — it delegates to the service.
 - The resource **MUST NOT** accept or return JPA entities — records only, in and out.
 - `@Valid` on request bodies; `@QueryParam`/`@DefaultValue` for pagination and filters.
@@ -206,6 +210,46 @@ Two rules that keep the logs readable:
 
 *Shape to copy: `references/code-examples.md` §12.*
 
+## 13. Production Concerns — schema, configuration, access
+
+### A. Database migrations (Flyway)
+
+- **The schema is owned by versioned migrations**, never by Hibernate. Set
+  `quarkus.hibernate-orm.database.generation=none` outside dev; `update` is forbidden in any environment that holds
+  data you care about.
+- Scripts live in `src/main/resources/db/migration` and are named
+  **`V<yyyyMMddHHmmss>__snake_case_description.sql`** (e.g. `V20260814093015__create_users_table.sql`). Take the
+  timestamp from the moment you write the file — never renumber an existing one.
+- **`quarkus.flyway.out-of-order=true`** is required by that naming: two branches produce interleaved timestamps, so a
+  migration merged late carries a version lower than one already applied. Without out-of-order Flyway refuses it; with
+  it, the migration applies on merge. The price is that a migration MUST NOT assume another branch's migration ran
+  first — each one stands alone or declares its dependency in SQL.
+- **Never edit a migration that has been applied anywhere.** Flyway stores a checksum; changing the file breaks
+  validation for everyone. Fix forward with a new script.
+- Sequences are created here, with `INCREMENT BY` matching the entity's `allocationSize` (§4).
+- Typical settings: `migrate-at-start=true`, `baseline-on-migrate=true` on an existing database, and
+  `clean-at-start` only under `%test`.
+
+### B. Configuration & secrets
+
+- **No secret in the repository.** Every credential, key, or external URL comes from an environment variable with, at
+  most, a local-development default: `quarkus.datasource.password=${DB_PASSWORD:dev-only}`.
+- Environment differences belong to profiles (`%dev`, `%test`, `%prod`) in `application.properties`, not to code
+  branching on an "env" string.
+- Read configuration through a typed `@ConfigMapping` interface grouped by feature, not `@ConfigProperty` fields
+  scattered across beans. It fails at startup when a required key is missing, instead of at the first request.
+
+### C. Access control is deny-by-default
+
+- Set **`quarkus.security.jaxrs.deny-unannotated-endpoints=true`**. An endpoint that nobody annotated then answers 401
+  instead of serving data — forgetting the annotation becomes a visible error rather than a silent hole.
+- Every resource method carries an explicit `@RolesAllowed({...})`, or a deliberate `@PermitAll` for the few public
+  ones (login, health). "Public because it has no annotation" is not a decision anyone made.
+- `quarkus.security.deny-unannotated-members=true` extends the same default to CDI methods in classes that already
+  carry security annotations.
+
+*Shape to copy: `references/code-examples.md` §13.*
+
 ## Definition of done — check before finishing
 
 - [ ] No Lombok anywhere; DTOs are records with Bean Validation annotations
@@ -224,4 +268,8 @@ Two rules that keep the logs readable:
 - [ ] New extensions added to `pom.xml`; code compiles (`./mvnw -q -DskipTests package`) and tests pass (`./mvnw test`)
 - [ ] Logging via `org.jboss.logging.Logger` with parametrized messages, right level, `Throwable` on `ERROR`, and no
       PII in any message
+- [ ] Every schema change ships as a `V<yyyyMMddHHmmss>__*.sql` migration; no applied migration was edited
+- [ ] No secret hardcoded; environment-specific values come from env vars or profiles
+- [ ] Every endpoint has an explicit `@RolesAllowed` or a deliberate `@PermitAll`
+- [ ] Paginated endpoints return `PageResponse<T>` with the total, not a bare `List`
 - [ ] No placeholders or TODOs left behind

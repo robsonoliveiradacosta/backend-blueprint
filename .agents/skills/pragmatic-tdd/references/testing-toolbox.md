@@ -146,6 +146,11 @@ sequences do not reset between tests.
 - Verify observable behaviour (returned value, persisted state, response body). Reach for `verify()` only when the
   interaction *is* the contract, e.g. "the notification client was called exactly once".
 - No mock of a type you own that has no logic — construct the real object instead.
+- **Authentication in endpoint tests:** with deny-by-default access control every request needs an identity, so a test
+  that sends none gets 401 and proves nothing about the endpoint. Annotate the test method with
+  `@TestSecurity(user = "tester", roles = {"ADMIN"})` (artifact `io.quarkus:quarkus-test-security`) instead of turning
+  security off for the test profile — and keep one test per endpoint that asserts the 401/403 for the wrong role,
+  since that is part of the contract.
 
 ## 5. Alternate configuration: `@TestProfile`
 
