@@ -2,22 +2,39 @@
 
 Companion to `SKILL.md`. Read the section you need; do not paste all of it into a project at once.
 
-## 1. What this project already has
+## 1. Check the test classpath before writing the first test
 
-Verified against the resolved test classpath of this repository (Quarkus `3.38.2`):
+Do not assume which test artifacts are available — the Quarkus test harness has been split and renamed across
+versions, and a project may carry `quarkus-junit`, the older `quarkus-junit5`, or neither. Resolve it:
 
-| Present | Notes |
+```shell
+./mvnw dependency:build-classpath -Dmdep.outputFile=/tmp/cp.txt -Dmdep.includeScope=test
+tr ':' '\n' < /tmp/cp.txt | grep -iE 'quarkus-(junit|test)|rest-assured|mockito|testcontainers'
+```
+
+To find which jar owns an annotation before importing it:
+
+```shell
+for j in $(tr ':' '\n' < /tmp/cp.txt); do
+  unzip -l "$j" 2>/dev/null | grep -q 'io/quarkus/test/TestTransaction.class' && echo "$j"
+done
+```
+
+**What tends to be there already** (observed on Quarkus 3.38.x with the `quarkus-junit` artifact — re-check on any
+other version):
+
+| Artifact | Provides |
 |---|---|
-| `io.quarkus:quarkus-junit` (test) | This project uses the **`quarkus-junit`** artifact, not the older `quarkus-junit5`. It brings JUnit Jupiter 6.x and provides `io.quarkus.test.junit.QuarkusTest`, `TestProfile`, `QuarkusTestProfile`, `QuarkusIntegrationTest` |
-| `io.quarkus:quarkus-test-common` (transitive) | Provides `io.quarkus.test.common.WithTestResource`, `QuarkusTestResourceLifecycleManager`, `TestResourceScope`, plus the annotations `io.quarkus.test.TestTransaction` and `io.quarkus.test.InjectMock` |
+| `io.quarkus:quarkus-junit` | `io.quarkus.test.junit.QuarkusTest`, `TestProfile`, `QuarkusTestProfile`, `QuarkusIntegrationTest`, plus JUnit Jupiter |
+| `io.quarkus:quarkus-test-common` (transitive) | `io.quarkus.test.common.WithTestResource`, `QuarkusTestResourceLifecycleManager`, `TestResourceScope`, and the annotations `io.quarkus.test.TestTransaction` / `io.quarkus.test.InjectMock` |
 
-**Not present yet** — add to `pom.xml` with `<scope>test</scope>` when first needed:
+**What usually has to be declared** — add with `<scope>test</scope>` when first needed, after confirming it is absent:
 
 | Need | Artifact |
 |---|---|
 | RestAssured DSL (required for the very first integration test) | `io.rest-assured:rest-assured` |
 | Mockito machinery behind `@InjectMock` / `@InjectSpy` | `io.quarkus:quarkus-junit5-mockito` |
-| Real database in tests | `org.testcontainers:postgresql` + the `quarkus-jdbc-postgresql` runtime extension |
+| Real database in tests | `org.testcontainers:<engine>` + the matching `quarkus-jdbc-<engine>` runtime extension |
 | Stubbing external HTTP | `io.quarkiverse.wiremock:quarkus-wiremock` (or plain `org.wiremock:wiremock`) |
 
 Versions come from the Quarkus BOM where managed — do not pin versions that the BOM already manages. Confirm an
@@ -104,8 +121,9 @@ void resetData() {
 
 - **`@TestTransaction`** (`io.quarkus.test.TestTransaction`) — runs the test method inside a transaction and rolls it
   back once the method completes, reverting every database change. Prefer it for tests that call repositories or
-  services **directly**: no cleanup code, no leftovers. The annotation ships in `quarkus-test-common`, already on this
-  project's test classpath; it needs a transaction manager at runtime, which arrives with the Hibernate ORM extension.
+  services **directly**: no cleanup code, no leftovers. The annotation ships in `quarkus-test-common` (confirm with the
+  classpath check in section 1); it needs a transaction manager at runtime, which arrives with the Hibernate ORM
+  extension.
 
   Two limits worth knowing:
   - Plain `@Transactional` on a test does **not** roll back — those writes are persisted and will leak into the next
@@ -119,7 +137,7 @@ sequences do not reset between tests.
 
 ## 4. Mocking
 
-- `@InjectMock` (`io.quarkus.test.InjectMock`, already on the test classpath via `quarkus-test-common`) replaces a CDI
+- `@InjectMock` (`io.quarkus.test.InjectMock`, shipped with `quarkus-test-common`) replaces a CDI
   bean with a Mockito mock for the whole test class; `@InjectSpy` wraps the real bean so unstubbed methods still run.
   Both need `quarkus-junit5-mockito` for the Mockito machinery. Do not import the legacy
   `io.quarkus.test.junit.mockito.InjectMock`.
@@ -159,7 +177,8 @@ response — including the failure paths (timeout, 500, malformed body), which a
 ## 7. Packaged-artifact tests
 
 `@QuarkusIntegrationTest` on a `*IT` class runs the tests against the built jar or native binary and is executed by
-`./mvnw verify` (the failsafe plugin is already configured in `pom.xml`, and the `native` profile enables ITs). The
+`./mvnw verify` when the failsafe plugin is configured in `pom.xml` (the Quarkus blueprint pom wires it, with the
+`native` profile enabling ITs). The
 common pattern is a subclass that reuses the `@QuarkusTest` class:
 
 ```java

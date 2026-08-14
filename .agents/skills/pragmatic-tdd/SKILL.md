@@ -92,8 +92,8 @@ A unit test that just restates the integration test with mocks is not worth writ
 
 ## Real dependencies, never fakes
 
-The database in tests is a **real PostgreSQL in a container**, never H2 or an in-memory substitute: a test that passes
-against a different engine proves nothing about the SQL that ships. Docker must be running. Two ways to get the
+The database in tests is the **real engine production uses, in a container** — never H2 or an in-memory substitute: a
+test that passes against a different engine proves nothing about the SQL that ships. Docker must be running. Two ways to get the
 container, both Testcontainers underneath — see `references/testing-toolbox.md` for the full setup, dependencies to
 add, and code.
 
@@ -113,6 +113,6 @@ External HTTP services are never called for real in tests — stub them (WireMoc
 ## Reference
 
 `references/testing-toolbox.md` — Testcontainers via Dev Services vs. explicit `@WithTestResource`, test data
-isolation, `@TestProfile`, mocking beans and REST clients, and the exact test dependencies this project still needs.
+isolation, `@TestProfile`, mocking beans and REST clients, and how to check which test dependencies are still missing.
 Read it before setting up the first test class of a new kind (first DB test, first mocked service, first external
 integration).
