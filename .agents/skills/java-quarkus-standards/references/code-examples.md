@@ -147,11 +147,25 @@ private static Sort parseSort(String sort) {
 
 ## 8. Resources — `{base.package}.resource`
 
+The fully dressed resource: every rule that governs this file at once — routing and status codes (§8), threading (§3),
+access control (§13), documentation (§14) and the error contract (§9). Copy this shape whole; the examples in the
+other sections are deliberately minimal and never repeat it.
+
 ```java
-// OpenAPI annotations (@Tag, @Operation, @APIResponse) are required too — omitted here, see §14.
 @Path("/v1/users")
 @Produces(MediaType.APPLICATION_JSON)
 @Consumes(MediaType.APPLICATION_JSON)
+@Tag(name = "Users", description = "User registry")
+@APIResponses({                                    // common errors declared once, not per method
+        @APIResponse(responseCode = "400", description = "Validation failure",
+                content = @Content(mediaType = "application/problem+json",
+                        schema = @Schema(implementation = ProblemDetail.class))),
+        @APIResponse(responseCode = "401", description = "Missing or invalid credentials"),
+        @APIResponse(responseCode = "403", description = "Authenticated without the required role"),
+        @APIResponse(responseCode = "500", description = "Unexpected failure",
+                content = @Content(mediaType = "application/problem+json",
+                        schema = @Schema(implementation = ProblemDetail.class)))
+})
 public class UserResource {
 
     private final UserService service;
@@ -161,17 +175,24 @@ public class UserResource {
     }
 
     @GET
-    @RolesAllowed({"USER", "ADMIN"})   // deny-by-default is on (§13): no method goes unannotated
+    @RolesAllowed({"USER", "ADMIN"})               // nothing is public unless it says so
     @RunOnVirtualThread
+    @Operation(summary = "List users", description = "Paginated, sortable listing.")
+    @APIResponse(responseCode = "200", description = "Page of users")
     public PageResponse<UserResponse> list(@QueryParam("page") @DefaultValue("0") int page,
                                            @QueryParam("size") @DefaultValue("20") int size,
                                            @QueryParam("sort") @DefaultValue("name") String sort) {
-        return service.list(page, size, sort);   // "name" or "createdAt,desc" — parsed in the service
+        return service.list(page, size, sort);     // "name" or "createdAt,desc" — parsed in the service
     }
 
     @POST
     @RolesAllowed("ADMIN")
     @RunOnVirtualThread
+    @Operation(summary = "Create a user", description = "Registers a user and returns its Location.")
+    @APIResponse(responseCode = "201", description = "Created")
+    @APIResponse(responseCode = "409", description = "Email already registered",
+            content = @Content(mediaType = "application/problem+json",
+                    schema = @Schema(implementation = ProblemDetail.class)))
     public Response create(@Valid CreateUserRequest request) {
         UserResponse created = service.create(request);
         return Response.created(URI.create("/v1/users/" + created.id()))
@@ -183,17 +204,24 @@ public class UserResource {
     @Path("/{id}")
     @RolesAllowed("ADMIN")
     @RunOnVirtualThread
+    @Operation(summary = "Replace a user")
+    @APIResponse(responseCode = "200", description = "Replaced")
+    @APIResponse(responseCode = "404", description = "No such user",
+            content = @Content(mediaType = "application/problem+json",
+                    schema = @Schema(implementation = ProblemDetail.class)))
     public UserResponse replace(@PathParam("id") Long id, @Valid UpdateUserRequest request) {
-        return service.replace(id, request);   // 200 with the resulting resource
+        return service.replace(id, request);
     }
 
     @DELETE
     @Path("/{id}")
     @RolesAllowed("ADMIN")
     @RunOnVirtualThread
+    @Operation(summary = "Delete a user")
+    @APIResponse(responseCode = "204", description = "Deleted, no body")
     public Response delete(@PathParam("id") Long id) {
         service.delete(id);
-        return Response.noContent().build();   // 204, no body
+        return Response.noContent().build();
     }
 }
 ```
@@ -360,33 +388,8 @@ public class UnhandledExceptionMapper extends AbstractProblemMapper implements E
 
 ## 14. OpenAPI & Swagger UI
 
-Common error responses declared once on the class; each method documents only what is specific to it:
-
-```java
-// Excerpt — documentation annotations only; the full resource shape is in §8.
-@Path("/v1/users")
-@Tag(name = "Users", description = "User registry")
-@APIResponses({
-        @APIResponse(responseCode = "400", description = "Validation failure",
-                content = @Content(mediaType = "application/problem+json",
-                        schema = @Schema(implementation = ProblemDetail.class))),
-        @APIResponse(responseCode = "401", description = "Missing or invalid credentials"),
-        @APIResponse(responseCode = "500", description = "Unexpected failure",
-                content = @Content(mediaType = "application/problem+json",
-                        schema = @Schema(implementation = ProblemDetail.class)))
-})
-public class UserResource {
-
-    @POST
-    @RolesAllowed("ADMIN")
-    @Operation(summary = "Create a user", description = "Registers a user and returns its Location.")
-    @APIResponse(responseCode = "201", description = "Created")
-    @APIResponse(responseCode = "409", description = "Email already registered",
-            content = @Content(mediaType = "application/problem+json",
-                    schema = @Schema(implementation = ProblemDetail.class)))
-    public Response create(@Valid CreateUserRequest request) { ... }
-}
-```
+The annotated resource is the §8 shape — it already carries `@Tag`, `@Operation` and the class-level
+`@APIResponses`. What follows is what does not live on the resource class:
 
 ```java
 // @Schema carries only what validation cannot express: meaning and an example.
