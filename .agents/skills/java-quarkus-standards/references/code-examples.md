@@ -138,6 +138,8 @@ public class UserResource {
 
 ## 9. Defensive Programming & Global Exception Handling (RFC 7807) — `{base.package}.exception`
 
+The payload and the single shared envelope every mapper reuses:
+
 ```java
 public record ProblemDetail(
         String type,        // "about:blank" unless a documentation URI exists
@@ -151,37 +153,61 @@ public record ProblemDetail(
     public record FieldError(String field, String message) {}
 }
 
-@Provider
-public class EntityNotFoundExceptionMapper implements ExceptionMapper<EntityNotFoundException> {
+public abstract class AbstractProblemMapper {
 
     @Context   // JAX-RS context injection, not CDI field injection — this is the idiom for providers
     UriInfo uriInfo;
 
-    @Override
-    public Response toResponse(EntityNotFoundException exception) {
+    protected Response problem(Response.Status status, String title, String detail,
+                               List<ProblemDetail.FieldError> errors) {
         ProblemDetail problem = new ProblemDetail(
                 "about:blank",
-                "Resource not found",
-                Response.Status.NOT_FOUND.getStatusCode(),
-                exception.getMessage(),
+                title,
+                status.getStatusCode(),
+                detail,
                 uriInfo.getRequestUri().getPath(),
                 OffsetDateTime.now(),
-                List.of());
-        return problemResponse(problem);
+                errors);
+        return Response.status(status)
+                .type("application/problem+json")
+                .entity(problem)
+                .build();
     }
 }
 ```
 
+A business failure the API expects: `WARN`, no stack trace, message safe to expose.
+
 ```java
 @Provider
-public class ConstraintViolationExceptionMapper implements ExceptionMapper<ConstraintViolationException> {
+public class EntityNotFoundExceptionMapper extends AbstractProblemMapper
+        implements ExceptionMapper<EntityNotFoundException> {
+
+    private static final Logger LOG = Logger.getLogger(EntityNotFoundExceptionMapper.class);
+
+    @Override
+    public Response toResponse(EntityNotFoundException exception) {
+        LOG.warnf("Not found: %s", exception.getMessage());
+        return problem(Response.Status.NOT_FOUND, "Resource not found", exception.getMessage(), List.of());
+    }
+}
+```
+
+Validation: the field name is the tail of the violation's property path, never the raw path.
+
+```java
+@Provider
+public class ConstraintViolationExceptionMapper extends AbstractProblemMapper
+        implements ExceptionMapper<ConstraintViolationException> {
 
     @Override
     public Response toResponse(ConstraintViolationException exception) {
-        List<FieldError> errors = exception.getConstraintViolations().stream()
-                .map(violation -> new FieldError(lastNode(violation.getPropertyPath()), violation.getMessage()))
+        List<ProblemDetail.FieldError> errors = exception.getConstraintViolations().stream()
+                .map(violation -> new ProblemDetail.FieldError(
+                        lastNode(violation.getPropertyPath()), violation.getMessage()))
                 .toList();
-        // ... build the ProblemDetail with status 400, title "Validation failed" and these errors
+        return problem(Response.Status.BAD_REQUEST, "Validation failed",
+                "One or more fields are invalid.", errors);
     }
 
     private static String lastNode(Path path) {
@@ -229,27 +255,16 @@ public class UserService {
 
 ```java
 @Provider
-public class UnhandledExceptionMapper implements ExceptionMapper<Exception> {
+public class UnhandledExceptionMapper extends AbstractProblemMapper implements ExceptionMapper<Exception> {
 
     private static final Logger LOG = Logger.getLogger(UnhandledExceptionMapper.class);
-
-    @Context
-    UriInfo uriInfo;
 
     @Override
     public Response toResponse(Exception exception) {
         // The operator gets the stack trace; the client gets a problem detail without internals.
         LOG.errorf(exception, "Unhandled failure on %s", uriInfo.getRequestUri().getPath());
-        ProblemDetail problem = new ProblemDetail(
-                "about:blank",
-                "Internal server error",
-                Response.Status.INTERNAL_SERVER_ERROR.getStatusCode(),
-                "The request could not be completed.",
-                uriInfo.getRequestUri().getPath(),
-                OffsetDateTime.now(),
-                List.of());
-        return problemResponse(problem);
+        return problem(Response.Status.INTERNAL_SERVER_ERROR, "Internal server error",
+                "The request could not be completed.", List.of());
     }
 }
 ```
-

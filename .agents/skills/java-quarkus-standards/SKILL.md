@@ -181,8 +181,8 @@ When a service method exists to serve an endpoint that must answer 404, it still
 
 ## 12. Observability & Structured Logging
 
-- **Standard Logger:** Always use `org.jboss.logging.Logger` (already on the classpath through Quarkus core). Do NOT
-  use `System.out.println` or `java.util.logging`.
+- **Standard Logger:** Always use `org.jboss.logging.Logger` — it ships with Quarkus core, so there is no
+  dependency to declare. Do NOT use `System.out.println` or `java.util.logging`.
 - **Field Initialization:** Declare logger instances as
   `private static final Logger LOG = Logger.getLogger(YourClass.class);`.
 - **Contextual Logging (No PII):** NEVER log sensitive personal data — passwords, tokens, full request bodies, or
