@@ -228,6 +228,9 @@ found.
 
 ## 10. Tests
 
+The order of work — test first, then implementation, then running the suite — is defined by the `pragmatic-tdd` skill;
+read it before starting. Conventions:
+
 - Integration tests for resources: `@QuarkusTest` + **RestAssured**, asserting status codes and JSON payloads.
 - Unit tests for services: `@QuarkusTest` with `@InjectMock` (Quarkus + Mockito) on repositories/collaborators.
 - Mirror the production package structure under `src/test/java`; name classes `*Test` (`*IT` for native/failsafe runs).
