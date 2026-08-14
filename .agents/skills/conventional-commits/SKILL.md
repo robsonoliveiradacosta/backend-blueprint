@@ -66,8 +66,8 @@ malformed one breaks that silently.
   migrating actually needs.
 - **`BREAKING CHANGE` is uppercase**, on its own line, followed by `: `. That exact token is what tooling detects —
   `Breaking change:` or a sentence in the body is invisible to it. `BREAKING-CHANGE:` is the only accepted synonym.
-- **Footers** — issue references and trailers, one per line: `Refs: #142`, `Closes #142`, `Co-Authored-By: …`. A
-  footer token replaces whitespace with `-` (`Reviewed-by`, never `Reviewed by`) and is separated from its value by
+- **Footers** — issue references and trailers, one per line: `Refs: #142`, `Closes #142`, `Reviewed-by: …`. A footer
+  token replaces whitespace with `-` (`Signed-off-by`, never `Signed off by`) and is separated from its value by
   `: ` or ` #`. `BREAKING CHANGE` is the one token allowed to contain a space.
 
 ## Three rules that keep the history usable
