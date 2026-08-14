@@ -116,6 +116,8 @@ hand.
 - **A paginated endpoint returns `PageResponse<T>`**, never a bare `List` — the client cannot page without the
   total. The service asks the repository for both the page and the count; `List<DTO>` is only for collections
   that are inherently small and unpaginated.
+- Clamp `size` to a maximum in the service (100 is a sane default) and floor `page` at 0, so a client cannot request
+  the whole table in one call.
 - The resource **MUST NOT** touch `PanacheRepository` or the `EntityManager` — it delegates to the service.
 - The resource **MUST NOT** accept or return JPA entities — records only, in and out.
 - `@Valid` on request bodies; `@QueryParam`/`@DefaultValue` for pagination and filters.
@@ -226,7 +228,9 @@ Two rules that keep the logs readable:
   first — each one stands alone or declares its dependency in SQL.
 - **Never edit a migration that has been applied anywhere.** Flyway stores a checksum; changing the file breaks
   validation for everyone. Fix forward with a new script.
-- Sequences are created here, with `INCREMENT BY` matching the entity's `allocationSize` (§4).
+- Sequences are created here, with `INCREMENT BY` matching the entity's `allocationSize` (§4). If the target engine
+  has no sequences (MySQL, for instance), §4 cannot be satisfied — raise it with the user instead of silently
+  falling back to `GenerationType.IDENTITY`.
 - Typical settings: `migrate-at-start=true`, `baseline-on-migrate=true` on an existing database, and
   `clean-at-start` only under `%test`.
 
@@ -244,7 +248,9 @@ Two rules that keep the logs readable:
 - Set **`quarkus.security.jaxrs.deny-unannotated-endpoints=true`**. An endpoint that nobody annotated then answers 401
   instead of serving data — forgetting the annotation becomes a visible error rather than a silent hole.
 - Every resource method carries an explicit `@RolesAllowed({...})`, or a deliberate `@PermitAll` for the few public
-  ones (login, health). "Public because it has no annotation" is not a decision anyone made.
+  ones (login, a public read endpoint). "Public because it has no annotation" is not a decision anyone made.
+- This property only governs Jakarta REST endpoints. Management routes such as `/q/health` and `/q/metrics` are not
+  JAX-RS resources — restrict those through `quarkus.http.auth.permission.*` (or the management interface) instead.
 - `quarkus.security.deny-unannotated-members=true` extends the same default to CDI methods in classes that already
   carry security annotations.
 

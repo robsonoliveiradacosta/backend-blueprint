@@ -61,6 +61,10 @@ public class UserRepository implements PanacheRepository<UserEntity> {
     }
 
     // Page and Sort come from io.quarkus.panache.common — not from Spring Data.
+    public List<UserEntity> findPage(Page page, Sort sort) {
+        return findAll(sort).page(page).list();
+    }
+
     public List<UserEntity> search(String term, Page page, Sort sort) {
         return find("lower(name) like lower(?1)", sort, "%" + term + "%").page(page).list();
     }
@@ -101,6 +105,22 @@ public class UserService {
         repository.persist(entity);
         return UserResponse.from(entity);
     }
+}
+```
+
+Assembling a page — the clamp lives in the service, the counting in the repository:
+
+```java
+public PageResponse<UserResponse> list(int page, int size) {
+    int safeSize = Math.clamp(size, 1, 100);
+    int safePage = Math.max(page, 0);
+
+    List<UserResponse> content = repository.findPage(Page.of(safePage, safeSize), Sort.by("name"))
+            .stream()
+            .map(UserResponse::from)
+            .toList();
+
+    return PageResponse.of(content, safePage, safeSize, repository.count());
 }
 ```
 
