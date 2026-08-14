@@ -292,6 +292,12 @@ The published contract is part of the deliverable: an endpoint nobody can discov
 
 *Shape to copy: `references/code-examples.md` §14.*
 
+## 15. Git Commits
+
+Commit messages follow Conventional Commits — the format, the allowed types and the breaking-change markers belong
+to the `conventional-commits` skill. Read it before writing one. One rule binds here: a `/v1` contract already
+published changes shape by getting a new version in the URI (§8), not by a breaking commit against the current one.
+
 ## Definition of done — check before finishing
 
 - [ ] No Lombok anywhere; DTOs are records with Bean Validation annotations
@@ -318,4 +324,5 @@ The published contract is part of the deliverable: an endpoint nobody can discov
 - [ ] Paginated endpoints return `PageResponse<T>` with the total, not a bare `List`
 - [ ] Endpoints carry `@Tag`/`@Operation`, documented status codes reference the `ProblemDetail` schema, and records
       document only what validation does not already declare
+- [ ] Commit message follows the `conventional-commits` skill
 - [ ] No placeholders or TODOs left behind
