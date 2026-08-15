@@ -53,6 +53,19 @@ You can then execute your native executable with: `./target/backend-blueprint-1.
 
 If you want to learn more about building native executables, please consult <https://quarkus.io/guides/maven-tooling>.
 
+## Reusing the standards in another project
+
+The skills under `.agents/skills/` are the standards this blueprint carries. To take them elsewhere:
+
+```shell script
+sh .agents/install-skills --list                       # what is available
+sh .agents/install-skills ../other-project             # all of them
+sh .agents/install-skills ../other-project conventional-commits
+```
+
+It copies the skill and creates the `.claude/skills/` and `.cursor/skills/` symlinks. Copies, not links to this
+checkout, so the other repository stays self-contained — run it again to pick up a later fix.
+
 ## Commit messages
 
 Commit messages follow [Conventional Commits](https://www.conventionalcommits.org/); the rules live in

@@ -1,0 +1,78 @@
+#!/bin/sh
+# Copies skills from this blueprint into another repository and wires them up for
+# Claude Code and Cursor.
+#
+#   sh .agents/install-skills <target-repo> [skill ...]
+#   sh .agents/install-skills --list
+#
+# With no skill named, every skill in this blueprint is installed. A skill already
+# present in the target is left alone unless --force is given.
+#
+# The skills are copied, not linked to this checkout: the target repository stays
+# self-contained, so whoever clones it gets the standards with it. The cost is that
+# a later fix here does not propagate — run this again to update.
+
+set -e
+
+agents_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+src_root="$agents_dir/skills"
+blueprint_root=$(dirname "$agents_dir")
+force=0
+target=
+skills=
+
+usage() {
+  sed -n '2,13p' "$0" | sed 's/^# \{0,1\}//'
+  exit "${1:-0}"
+}
+
+list_skills() {
+  for dir in "$src_root"/*/; do
+    [ -f "$dir/SKILL.md" ] || continue
+    printf '%s\n' "$(basename "$dir")"
+  done
+}
+
+for arg in "$@"; do
+  case "$arg" in
+    --force) force=1 ;;
+    --list) list_skills; exit 0 ;;
+    -h|--help) usage ;;
+    -*) printf 'unknown option: %s\n\n' "$arg" >&2; usage 1 >&2 ;;
+    *) if [ -z "$target" ]; then target=$arg; else skills="$skills $arg"; fi ;;
+  esac
+done
+
+[ -n "$target" ] || usage 1 >&2
+[ -d "$target" ] || { printf 'not a directory: %s\n' "$target" >&2; exit 1; }
+target=$(CDPATH= cd -- "$target" && pwd)
+[ "$target" != "$blueprint_root" ] || { printf 'target is this blueprint itself\n' >&2; exit 1; }
+
+[ -n "$skills" ] || skills=$(list_skills)
+
+for name in $skills; do
+  src="$src_root/$name"
+  [ -d "$src" ] || { printf 'no such skill: %s\n' "$name" >&2; exit 1; }
+
+  dst="$target/.agents/skills/$name"
+  mkdir -p "$target/.agents/skills"
+
+  if [ -e "$dst" ] && [ "$force" -eq 0 ]; then
+    printf 'kept    %s (already there; --force to overwrite)\n' "$name"
+  else
+    rm -rf "$dst"
+    cp -R "$src" "$dst"
+    printf 'copied  %s\n' "$name"
+  fi
+
+  # -n so an existing symlink is replaced instead of being followed, which would
+  # bury the new link inside the directory it points at.
+  for agent_dir in .claude .cursor; do
+    mkdir -p "$target/$agent_dir/skills"
+    ln -sfn "../../.agents/skills/$name" "$target/$agent_dir/skills/$name"
+    printf 'linked  %s/skills/%s\n' "$agent_dir" "$name"
+  done
+done
+
+printf '\nPoint the target repository CLAUDE.md at what you installed, so an agent\n'
+printf 'loads the skill instead of hoping to remember it.\n'
