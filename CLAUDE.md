@@ -15,11 +15,8 @@ follow it — those files are the source of truth, and this one only points at t
 
 ## After cloning
 
-Git hooks are not versioned. Link the repository's hook into the local `.git/hooks`:
-
-```shell
-ln -sf ../../.githooks/commit-msg .git/hooks/commit-msg
-```
+Git hooks are not versioned, so any Maven build copies `.githooks/commit-msg` into `.git/hooks/`. Run
+`./mvnw validate` if you need to commit before building.
 
 ## Commands
 

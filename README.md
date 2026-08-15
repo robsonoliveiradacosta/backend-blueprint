@@ -56,11 +56,14 @@ If you want to learn more about building native executables, please consult <htt
 ## Git hooks
 
 Commit messages follow [Conventional Commits](https://www.conventionalcommits.org/), validated by
-`.githooks/commit-msg`. Git does not version hooks, so link it once after cloning:
+`.githooks/commit-msg`. Git does not version hooks, so the build installs it into `.git/hooks/`: every Maven
+build does it, and after cloning a bare
 
 ```shell script
-ln -sf ../../.githooks/commit-msg .git/hooks/commit-msg
+./mvnw validate
 ```
+
+is enough if you intend to commit before building anything.
 
 ## Related Guides
 
