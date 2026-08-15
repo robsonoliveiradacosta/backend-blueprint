@@ -202,21 +202,18 @@ global contract is that a client parses one shape.
 
 ## 10. Tests
 
-The order of work (test first), the choice between integration and unit tests, and container/mocking setup belong to
-the `pragmatic-tdd-quarkus` skill — read it before starting. Conventions that bind here:
-
-- Resources are covered by `@QuarkusTest` + **RestAssured**; every new endpoint gets at least a success case, a
-  validation-failure case, and a not-found case.
-- Mirror the production package structure under `src/test/java`; name classes `*Test` (`*IT` for native/failsafe runs).
+The order of work (test first), what every endpoint must cover, the choice between integration and unit tests, the
+naming and placement of test classes, and container/mocking setup all belong to the `pragmatic-tdd-quarkus` skill.
+Read it before writing behaviour, and again before calling an implementation done.
 
 ## 11. Code Quality, SOLID & Clean Code
 
-- **Single Responsibility (SRP):** Enforce strict separation of concerns across layers (Resource handles HTTP, Service
-  handles domain logic, Repository handles persistence). A class that reaches across two of those responsibilities is
-  split, not extended.
-- **Constructor Injection (DIP):** Always use constructor-based dependency injection in `@ApplicationScoped` beans.
-  Avoid field injection via `@Inject`. Depend on the collaborator you own (the repository), never on an
-  `EntityManager` smuggled into a resource.
+Where the layers sit (§5, §7, §8) and how beans receive their collaborators (§7) are settled in those sections. What
+this one adds:
+
+- **A class that reaches across two layers is split, not extended.** Query logic found in a service, or HTTP handling
+  found in a repository, moves to where it belongs — widening the class that happens to hold it is how a layer stops
+  meaning anything.
 - **Cyclomatic Complexity & Method Size:** Keep methods short (under 20 lines) and focused. Use early returns (guard
   clauses) to minimize nested `if/else` statements.
 - **Null Safety & Intentional Returns:** Never return `null` from service methods. Use `Optional<T>` for potentially

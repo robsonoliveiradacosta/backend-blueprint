@@ -256,21 +256,18 @@ contract is that a client parses one shape.
 
 ## 10. Tests
 
-The order of work (test first), the choice between integration and unit tests, and container/mocking setup belong to
-the `pragmatic-tdd-spring` skill — read it before starting. Conventions that bind here:
-
-- Controllers are covered by `@SpringBootTest` + `@AutoConfigureMockMvc`; every new endpoint gets at least a success
-  case, a validation-failure case, and a not-found case.
-- The database in tests is the real engine in a Testcontainers container, never H2.
-- Mirror the production package structure under `src/test/java`; name classes `*Test` (`*IT` for failsafe runs).
+The order of work (test first), what every endpoint must cover, the choice between integration and unit tests, the
+naming and placement of test classes, and container/mocking setup all belong to the `pragmatic-tdd-spring` skill.
+Read it before writing behaviour, and again before calling an implementation done.
 
 ## 11. Code quality, SOLID & clean code
 
-- **Single Responsibility (SRP):** enforce strict separation of concerns across layers (Controller handles HTTP,
-  Service handles domain logic, Repository handles persistence). A class that reaches across two of those
-  responsibilities is split, not extended.
-- **Constructor Injection (DIP):** always use constructor-based dependency injection in `@Service` and
-  `@RestController` components. No `@Autowired` fields, no setter injection.
+Where the layers sit (§5, §7, §8) and how beans receive their collaborators (§7) are settled in those sections. What
+this one adds:
+
+- **A class that reaches across two layers is split, not extended.** Query logic found in a service, or HTTP handling
+  found in a repository, moves to where it belongs — widening the class that happens to hold it is how a layer stops
+  meaning anything.
 - **Cyclomatic complexity & method size:** keep methods short (under 20 lines) and focused. Use early returns (guard
   clauses) to minimize nested `if/else`.
 - **Null safety & intentional returns:** never return `null` from service methods. Use `Optional<T>` for potentially
