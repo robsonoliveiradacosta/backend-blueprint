@@ -10,13 +10,8 @@ follow it — those files are the source of truth, and this one only points at t
 | `pragmatic-tdd` | implementing or fixing behaviour, and before calling an implementation done |
 | `conventional-commits` | writing any commit message |
 
-**Load `conventional-commits` before every `git commit`.** The message format is not improvised, and
-`.githooks/commit-msg` rejects a message that does not follow it — an invalid message costs a round trip.
-
-## After cloning
-
-Git hooks are not versioned, so any Maven build copies `.githooks/commit-msg` into `.git/hooks/`. Run
-`./mvnw validate` if you need to commit before building.
+**Load `conventional-commits` before every `git commit`.** Nothing checks the message afterwards — the
+standard holds only because it was read, so read it.
 
 ## Commands
 

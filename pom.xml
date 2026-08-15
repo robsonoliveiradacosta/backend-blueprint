@@ -7,7 +7,6 @@
     <packaging>quarkus</packaging>
 
     <properties>
-        <antrun-plugin.version>3.2.0</antrun-plugin.version>
         <compiler-plugin.version>3.15.0</compiler-plugin.version>
         <maven.compiler.release>21</maven.compiler.release>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
@@ -97,42 +96,6 @@
     </build>
 
     <profiles>
-        <!-- Git does not version hooks, so the build installs them. Activated only inside a working
-             clone: a source tarball or a Docker context without .git skips it silently. -->
-        <profile>
-            <id>install-git-hooks</id>
-            <activation>
-                <file>
-                    <exists>${basedir}/.git/hooks</exists>
-                </file>
-            </activation>
-            <build>
-                <plugins>
-                    <plugin>
-                        <artifactId>maven-antrun-plugin</artifactId>
-                        <version>${antrun-plugin.version}</version>
-                        <executions>
-                            <execution>
-                                <id>install-commit-msg-hook</id>
-                                <phase>validate</phase>
-                                <goals>
-                                    <goal>run</goal>
-                                </goals>
-                                <configuration>
-                                    <target>
-                                        <!-- The installer holds the logic so every stack shares it;
-                                             Windows runs `sh .githooks/install` by hand. -->
-                                        <exec executable="sh" dir="${basedir}" osfamily="unix" failonerror="true">
-                                            <arg value=".githooks/install"/>
-                                        </exec>
-                                    </target>
-                                </configuration>
-                            </execution>
-                        </executions>
-                    </plugin>
-                </plugins>
-            </build>
-        </profile>
         <profile>
             <id>native</id>
             <activation>

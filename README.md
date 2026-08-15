@@ -53,18 +53,10 @@ You can then execute your native executable with: `./target/backend-blueprint-1.
 
 If you want to learn more about building native executables, please consult <https://quarkus.io/guides/maven-tooling>.
 
-## Git hooks
+## Commit messages
 
-Commit messages follow [Conventional Commits](https://www.conventionalcommits.org/), validated by
-`.githooks/commit-msg`. Git does not version hooks, so the build installs it into `.git/hooks/`: every Maven
-build does it, and after cloning a bare
-
-```shell script
-./mvnw validate
-```
-
-is enough if you intend to commit before building anything. The build delegates to `.githooks/install`, which
-also runs on its own (`sh .githooks/install`) — on Windows, or from a project that is not built with Maven.
+Commit messages follow [Conventional Commits](https://www.conventionalcommits.org/); the rules live in
+`.agents/skills/conventional-commits/SKILL.md`.
 
 ## Related Guides
 
