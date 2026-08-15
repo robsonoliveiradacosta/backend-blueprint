@@ -13,6 +13,18 @@ follow it — those files are the source of truth, and this one only points at t
 **Load `conventional-commits` before every `git commit`.** Nothing checks the message afterwards — the
 standard holds only because it was read, so read it.
 
+## Skills shipped for other stacks
+
+`java-spring-standards` and `pragmatic-tdd-spring` are the Spring Boot 3 counterparts of the two skills above. They
+do not govern this repository — nothing here is Spring — and exist to be installed into Spring projects:
+
+```shell
+sh .agents/install-skills <target-repo> java-spring-standards pragmatic-tdd-spring conventional-commits
+```
+
+Name the skills explicitly like that. With no skill named the installer copies **all** of them, which drops the
+Quarkus standards into a Spring project and the other way round.
+
 ## Commands
 
 ```shell
