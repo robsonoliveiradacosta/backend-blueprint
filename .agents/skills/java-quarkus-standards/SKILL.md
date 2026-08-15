@@ -200,7 +200,7 @@ global contract is that a client parses one shape.
 ## 10. Tests
 
 The order of work (test first), the choice between integration and unit tests, and container/mocking setup belong to
-the `pragmatic-tdd` skill — read it before starting. Conventions that bind here:
+the `pragmatic-tdd-quarkus` skill — read it before starting. Conventions that bind here:
 
 - Resources are covered by `@QuarkusTest` + **RestAssured**; every new endpoint gets at least a success case, a
   validation-failure case, and a not-found case.

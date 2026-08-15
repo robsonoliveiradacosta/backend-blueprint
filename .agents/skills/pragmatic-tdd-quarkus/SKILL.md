@@ -1,6 +1,6 @@
 ---
-name: pragmatic-tdd
-description: "Pragmatic TDD / test-first workflow and testing practices for this project. Use whenever implementing or changing an endpoint, business service, or repository behaviour; when fixing a bug; when asked to add a feature, 'write the tests', set up Testcontainers, mock a dependency, or speed up a slow suite; and before declaring any implementation task complete. Defines the order of work (integration test first, then Resource/Service/Repository, then run the suite), what to test (HTTP contracts, happy path and error paths), when a unit test is worth it, and how real dependencies are provisioned in tests. Complements the java-quarkus-standards skill, which defines how the code itself must be shaped."
+name: pragmatic-tdd-quarkus
+description: "Pragmatic TDD / test-first workflow and testing practices for Quarkus projects. Use whenever implementing or changing an endpoint, business service, or repository behaviour; when fixing a bug; when asked to add a feature, 'write the tests', set up Testcontainers, mock a dependency, or speed up a slow suite; and before declaring any implementation task complete. Defines the order of work (integration test first, then Resource/Service/Repository, then run the suite), what to test (HTTP contracts, happy path and error paths), when a unit test is worth it, and how real dependencies are provisioned with QuarkusTest, RestAssured, @InjectMock and Dev Services. Complements the java-quarkus-standards skill, which defines how the code itself must be shaped. For Quarkus projects only — a Spring Boot codebase follows pragmatic-tdd-spring instead."
 ---
 
 # Development Methodology — Pragmatic TDD & Test-First

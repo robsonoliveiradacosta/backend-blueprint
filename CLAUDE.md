@@ -7,7 +7,7 @@ follow it — those files are the source of truth, and this one only points at t
 | Load | Before |
 |---|---|
 | `java-quarkus-standards` | writing, refactoring or reviewing any Java code here |
-| `pragmatic-tdd` | implementing or fixing behaviour, and before calling an implementation done |
+| `pragmatic-tdd-quarkus` | implementing or fixing behaviour, and before calling an implementation done |
 | `conventional-commits` | writing any commit message |
 
 **Load `conventional-commits` before every `git commit`.** Nothing checks the message afterwards — the
