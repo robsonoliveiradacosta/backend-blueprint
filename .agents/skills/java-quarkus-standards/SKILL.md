@@ -124,6 +124,9 @@ hand.
   that is genuinely not CRUD becomes a sub-resource noun (`POST /v1/orders/{id}/cancellation`).
 - **Nest at most two levels** (`/v1/customers/{customerId}/orders`). Anything deeper is addressed through its own
   top-level URI (`/v1/orders/{orderId}`), not `/v1/customers/1/orders/2/items/3`.
+- **A published version never changes shape in place.** Once clients integrate against `/v1`, an unavoidable breaking
+  change ships as `/v2` beside it — removing a field, renaming one, or tightening validation on the live version
+  breaks callers who had no way to know. Retiring `/v1` afterwards is a separate, announced decision.
 
 ### Method semantics
 
@@ -291,12 +294,6 @@ The published contract is part of the deliverable: an endpoint nobody can discov
   "try it out" actually works.
 
 *Shape to copy: `references/code-examples.md` §14.*
-
-## 15. Git Commits
-
-Commit messages follow Conventional Commits — the format, the allowed types and the breaking-change markers belong
-to the `conventional-commits` skill. Read it before writing one. One rule binds here: a `/v1` contract already
-published changes shape by getting a new version in the URI (§8), not by a breaking commit against the current one.
 
 ## Definition of done — check before finishing
 
