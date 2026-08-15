@@ -120,13 +120,11 @@
                                 </goals>
                                 <configuration>
                                     <target>
-                                        <!-- Delete first: the destination may be a symlink from the
-                                             earlier manual install, and copying onto it would write
-                                             through to the versioned source. -->
-                                        <delete file="${basedir}/.git/hooks/commit-msg" quiet="true"/>
-                                        <copy file="${basedir}/.githooks/commit-msg"
-                                              tofile="${basedir}/.git/hooks/commit-msg"/>
-                                        <chmod file="${basedir}/.git/hooks/commit-msg" perm="755" osfamily="unix"/>
+                                        <!-- The installer holds the logic so every stack shares it;
+                                             Windows runs `sh .githooks/install` by hand. -->
+                                        <exec executable="sh" dir="${basedir}" osfamily="unix" failonerror="true">
+                                            <arg value=".githooks/install"/>
+                                        </exec>
                                     </target>
                                 </configuration>
                             </execution>

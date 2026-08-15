@@ -63,7 +63,8 @@ build does it, and after cloning a bare
 ./mvnw validate
 ```
 
-is enough if you intend to commit before building anything.
+is enough if you intend to commit before building anything. The build delegates to `.githooks/install`, which
+also runs on its own (`sh .githooks/install`) — on Windows, or from a project that is not built with Maven.
 
 ## Related Guides
 
