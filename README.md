@@ -110,10 +110,10 @@ copies from it. After installing, point the target repository's `CLAUDE.md` / `A
 | Spring Boot | `pragmatic-tdd-spring`   | implementing or fixing behaviour, and before calling an implementation done |
 | any stack   | `conventional-commits`   | writing any commit message                                                  |
 
-Put only the row(s) matching the stack you installed into the target repository's `CLAUDE.md` / `AGENTS.md`, plus
-the `conventional-commits` row — that one is stack-agnostic and always applies. The portable snippet for it (and for
-overriding the default commit-message footer) already lives in this repository's own `CLAUDE.md` / `AGENTS.md` —
-copy it over rather than retyping it.
+Put only the row(s) matching the stack you installed into the target repository's `CLAUDE.md` / `AGENTS.md`, plus the
+`conventional-commits` row — that one is stack-agnostic and always applies. The portable snippet for it (and for
+overriding the default commit-message footer) already lives in this repository's own `CLAUDE.md` / `AGENTS.md` — copy it
+over rather than retyping it.
 
 ## Commit messages
 
